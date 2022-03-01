@@ -1,10 +1,13 @@
 package smt
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/go-redis/redis"
 	"github.com/nervosnetwork/ckb-sdk-go/crypto/blake2b"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"testing"
 	"time"
 )
@@ -156,7 +159,7 @@ func TestRedisStore(t *testing.T) {
 	s := NewRedisStore(red)
 	fmt.Println(time.Now().String())
 	tree := NewSparseMerkleTree("test", s)
-	count := 10000
+	count := 3
 	for i := 0; i < count; i++ {
 		key := fmt.Sprintf("key-%d", i)
 		value := fmt.Sprintf("value-%d", i)
@@ -200,4 +203,95 @@ func TestBranchNode(t *testing.T) {
 	var data map[string]interface{}
 	err = json.Unmarshal(res, &data)
 	fmt.Println(err, data)
+}
+
+func TestMongodbStoreDB(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewMongoStore(ctx, client)
+	collection := s.client.Database("smt").Collection("test")
+	if err := collection.Drop(s.ctx); err != nil {
+		t.Fatal(err)
+	}
+	//key := BranchKey{
+	//	NameSpace: "test",
+	//	Height:    0,
+	//	NodeKey:   H256Zero(),
+	//}
+	//node := BranchNode{
+	//	Left:  MergeValueFromZero(),
+	//	Right: MergeValueFromZero(),
+	//}
+	//err = s.InsertBranch(key, node)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//res, err := s.GetBranch(key)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//fmt.Println(res)
+}
+
+func TestMongodbStore(t *testing.T) {
+	// 1000 2min 30M
+	// 10000 16min 330M
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewMongoStore(ctx, client)
+	fmt.Println(time.Now().String())
+	tree := NewSparseMerkleTree("test", s)
+	count := 10000
+	//for i := 0; i < count; i++ {
+	//	key := fmt.Sprintf("key-%d", i)
+	//	value := fmt.Sprintf("value-%d", i)
+	//	k, _ := blake2b.Blake256([]byte(key))
+	//	v, _ := blake2b.Blake256([]byte(value))
+	//	if err := tree.Update(k, v); err != nil {
+	//		t.Fatal(err)
+	//	}
+	//}
+	fmt.Println(time.Now().String())
+	k, _ := blake2b.Blake256([]byte("key-1"))
+	v, _ := blake2b.Blake256([]byte("value-1"))
+	if err := tree.Update(k, v); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < count; i++ {
+		key := fmt.Sprintf("key-%d", i)
+		value := fmt.Sprintf("value-%d", i)
+		var keys, values []H256
+		k1, _ := blake2b.Blake256([]byte(key))
+		keys = append(keys, k1)
+		v1, _ := blake2b.Blake256([]byte(value))
+		values = append(values, v1)
+		proof, err := tree.MerkleProof(keys, values)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Println(Verify(tree.Root, proof, keys, values))
+	}
+	//var keys, values []H256
+	//key := fmt.Sprintf("key-%d", 1)
+	//value := fmt.Sprintf("value-%d", 1)
+	//k, _ := blake2b.Blake256([]byte(key))
+	//v, _ := blake2b.Blake256([]byte(value))
+	//keys = append(keys, k)
+	//values = append(values, v)
+	//
+	//proof, err := tree.MerkleProof(keys, values)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//fmt.Println(proof)
+	//fmt.Println(Verify(tree.Root, proof, keys, values))
 }

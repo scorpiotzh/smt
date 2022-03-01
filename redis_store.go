@@ -81,10 +81,8 @@ func (s *RedisStore) InsertBranch(key BranchKey, node BranchNode) error {
 func (s *RedisStore) RemoveBranch(key BranchKey) error {
 	fmt.Println("RemoveBranch")
 	keyHash := key.GetHash()
-	if res, err := s.red.HDel(key.NameSpace, keyHash).Result(); err != nil {
+	if _, err := s.red.HDel(key.NameSpace, keyHash).Result(); err != nil {
 		return err
-	} else {
-		fmt.Println(res)
 	}
 	return nil
 }
