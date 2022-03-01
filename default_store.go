@@ -9,8 +9,9 @@ var (
 )
 
 type BranchKey struct {
-	Height  byte
-	NodeKey H256
+	NameSpace string
+	Height    byte
+	NodeKey   H256
 }
 
 func (b *BranchKey) GetHash() string {

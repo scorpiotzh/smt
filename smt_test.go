@@ -1,14 +1,16 @@
 package smt
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/go-redis/redis"
 	"github.com/nervosnetwork/ckb-sdk-go/crypto/blake2b"
 	"testing"
 	"time"
 )
 
 func TestSparseMerkleTree(t *testing.T) {
-	tree := NewSparseMerkleTree(nil)
+	tree := NewSparseMerkleTree("", nil)
 	key := Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000")
 	value := Hex2Bytes("00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 	_ = tree.Update(key, value)
@@ -31,7 +33,7 @@ func TestSparseMerkleTree(t *testing.T) {
 }
 
 func TestMerkleProof(t *testing.T) {
-	tree := NewSparseMerkleTree(nil)
+	tree := NewSparseMerkleTree("", nil)
 	key := Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000")
 	value := Hex2Bytes("00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 	_ = tree.Update(key, value)
@@ -74,7 +76,7 @@ func TestMerge(t *testing.T) {
 }
 
 func TestMerkleProof2(t *testing.T) {
-	tree := NewSparseMerkleTree(nil)
+	tree := NewSparseMerkleTree("", nil)
 	key1 := Hex2Bytes("0x88e6966ee9d691a6befe0664bb54c7b45bbda274a7cf5fa8cd07f56d94741223")
 	value1 := Hex2Bytes("0xe19e9083ca4dbbee50e56c9825eed7fd750c1982f86412275c9efedf3440f83b")
 	_ = tree.Update(key1, value1)
@@ -114,8 +116,8 @@ func TestMerkleProof2(t *testing.T) {
 
 func TestSmt(t *testing.T) {
 	fmt.Println(time.Now().String())
-	tree := NewSparseMerkleTree(nil)
-	count := 4
+	tree := NewSparseMerkleTree("", nil)
+	count := 100
 	for i := 0; i < count; i++ {
 		key := fmt.Sprintf("key-%d", i)
 		value := fmt.Sprintf("value-%d", i)
@@ -126,20 +128,76 @@ func TestSmt(t *testing.T) {
 		_ = tree.Update(k, v)
 	}
 	fmt.Println(time.Now().String())
-	//for i:=0;i<count;i++{
-	//	key := fmt.Sprintf("key-%d", i)
-	//	value := fmt.Sprintf("value-%d", i)
-	//	var keys, values []smt.H256
-	//	k1, _ := blake2b.Blake256([]byte(key))
-	//	keys = append(keys, k1)
-	//	v1, _ := blake2b.Blake256([]byte(value))
-	//	values = append(values, v1)
-	//	proof, err := tree.MerkleProof(keys, values)
-	//	if err != nil {
-	//		t.Fatal(err)
-	//	}
-	//	fmt.Println(smt.Verify(tree.Root, proof, keys, values))
-	//}
-	//fmt.Println(time.Now().String())
+	for i := 0; i < count; i++ {
+		key := fmt.Sprintf("key-%d", i)
+		value := fmt.Sprintf("value-%d", i)
+		var keys, values []H256
+		k1, _ := blake2b.Blake256([]byte(key))
+		keys = append(keys, k1)
+		v1, _ := blake2b.Blake256([]byte(value))
+		values = append(values, v1)
+		proof, err := tree.MerkleProof(keys, values)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Println(Verify(tree.Root, proof, keys, values))
+	}
+	fmt.Println(time.Now().String())
 
+}
+
+func TestRedisStore(t *testing.T) {
+	// 10000 5min 900M
+	red := redis.NewClient(&redis.Options{
+		Addr:     "127.0.0.1:6379",
+		Password: "",
+		DB:       0,
+	})
+	s := NewRedisStore(red)
+	fmt.Println(time.Now().String())
+	tree := NewSparseMerkleTree("test", s)
+	count := 10000
+	for i := 0; i < count; i++ {
+		key := fmt.Sprintf("key-%d", i)
+		value := fmt.Sprintf("value-%d", i)
+		k, _ := blake2b.Blake256([]byte(key))
+		v, _ := blake2b.Blake256([]byte(value))
+		//fmt.Println("k:",common.Bytes2Hex(k))
+		//fmt.Println("v:",common.Bytes2Hex(v))
+		if err := tree.Update(k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fmt.Println(time.Now().String())
+
+	var keys, values []H256
+	key := fmt.Sprintf("key-%d", 1)
+	value := fmt.Sprintf("value-%d", 1)
+	k, _ := blake2b.Blake256([]byte(key))
+	v, _ := blake2b.Blake256([]byte(value))
+	keys = append(keys, k)
+	values = append(values, v)
+
+	proof, err := tree.MerkleProof(keys, values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(proof)
+	fmt.Println(Verify(tree.Root, proof, keys, values))
+}
+
+func TestBranchNode(t *testing.T) {
+	node := BranchNode{
+		Left: &MergeValueH256{Value: H256Zero()},
+		Right: &MergeValueZero{
+			BaseNode:  H256Zero(),
+			ZeroBits:  H256Zero(),
+			ZeroCount: 0,
+		},
+	}
+	res, err := json.Marshal(&node)
+	fmt.Println(string(res), err)
+	var data map[string]interface{}
+	err = json.Unmarshal(res, &data)
+	fmt.Println(err, data)
 }

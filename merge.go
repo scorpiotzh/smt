@@ -11,19 +11,21 @@ type MergeValue interface {
 	String() string
 }
 
-type MergeValueH256 H256
+type MergeValueH256 struct {
+	Value H256
+}
 
 func (m *MergeValueH256) Hash() H256 {
-	return H256(*m)
+	return m.Value
 }
 
 func (m *MergeValueH256) IsZero() bool {
-	tmp := H256(*m)
+	tmp := m.Value
 	return tmp.IsZero()
 }
 
 func (m *MergeValueH256) String() string {
-	return Bytes2Hex(*m)
+	return Bytes2Hex(m.Value)
 }
 
 type MergeValueZero struct {
@@ -51,7 +53,7 @@ func (m *MergeValueZero) String() string {
 }
 
 func MergeValueFromH256(value H256) MergeValue {
-	tmp := MergeValueH256(value)
+	tmp := MergeValueH256{Value: value}
 	return &tmp
 }
 
@@ -108,8 +110,7 @@ func MergeWithZero(height byte, nodeKey H256, value MergeValue, setBit bool) Mer
 		if setBit {
 			zeroBits.SetBit(height)
 		}
-		tmp := H256(*v)
-		baseNode := HashBaseNode(height, nodeKey, tmp)
+		baseNode := HashBaseNode(height, nodeKey, v.Value)
 
 		return &MergeValueZero{
 			BaseNode:  baseNode,
