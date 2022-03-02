@@ -118,6 +118,7 @@ func TestMerkleProof2(t *testing.T) {
 
 func TestSmt(t *testing.T) {
 	// 10000 4s
+	// 100000 2min
 	fmt.Println(time.Now().String())
 	tree := NewSparseMerkleTree("", nil)
 	count := 100000
@@ -129,20 +130,20 @@ func TestSmt(t *testing.T) {
 		_ = tree.Update(k, v)
 	}
 	fmt.Println(time.Now().String())
-	for i := 0; i < count; i++ {
-		key := fmt.Sprintf("key-%d", i)
-		value := fmt.Sprintf("value-%d", i)
-		var keys, values []H256
-		k1 := Sha256(key)
-		keys = append(keys, k1)
-		v1 := Sha256(value)
-		values = append(values, v1)
-		proof, err := tree.MerkleProof(keys, values)
-		if err != nil {
-			t.Fatal(err)
-		}
-		fmt.Println(Verify(tree.Root, proof, keys, values))
-	}
+	//for i := 0; i < count; i++ {
+	//	key := fmt.Sprintf("key-%d", i)
+	//	value := fmt.Sprintf("value-%d", i)
+	//	var keys, values []H256
+	//	k1 := Sha256(key)
+	//	keys = append(keys, k1)
+	//	v1 := Sha256(value)
+	//	values = append(values, v1)
+	//	proof, err := tree.MerkleProof(keys, values)
+	//	if err != nil {
+	//		t.Fatal(err)
+	//	}
+	//	fmt.Println(Verify(tree.Root, proof, keys, values))
+	//}
 	fmt.Println(time.Now().String())
 
 }
