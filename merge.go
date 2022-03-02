@@ -42,12 +42,6 @@ func (m *MergeValue) String() string {
 	}
 }
 
-type MergeValueZero struct {
-	BaseNode  H256
-	ZeroBits  H256
-	ZeroCount byte
-}
-
 func MergeValueFromH256(value H256) MergeValue {
 	return MergeValue{
 		Value:     value,
