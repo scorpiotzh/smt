@@ -5,27 +5,41 @@ import (
 	"github.com/minio/blake2b-simd"
 )
 
-type MergeValue interface {
-	Hash() H256
-	IsZero() bool
-	String() string
+type MergeValue struct {
+	Value     H256 `json:"v" bson:"v"`
+	BaseNode  H256 `json:"n" bson:"n"`
+	ZeroBits  H256 `json:"b" bson:"b"`
+	ZeroCount byte `json:"c" bson:"c"`
 }
 
-type MergeValueH256 struct {
-	Value H256
+func (m *MergeValue) Hash() H256 {
+	if m.Value != nil {
+		return m.Value
+	} else {
+		var tmp []byte
+		tmp = append(tmp, MergeZeros)
+		tmp = append(tmp, m.BaseNode...)
+		tmp = append(tmp, m.ZeroBits...)
+		tmp = append(tmp, m.ZeroCount)
+		res, _ := smtBlake256(tmp)
+		return res
+	}
 }
 
-func (m *MergeValueH256) Hash() H256 {
-	return m.Value
+func (m *MergeValue) IsZero() bool {
+	if m.Value != nil {
+		return m.Value.IsZero()
+	} else {
+		return false
+	}
 }
 
-func (m *MergeValueH256) IsZero() bool {
-	tmp := m.Value
-	return tmp.IsZero()
-}
-
-func (m *MergeValueH256) String() string {
-	return Bytes2Hex(m.Value)
+func (m *MergeValue) String() string {
+	if m.Value != nil {
+		return Bytes2Hex(m.Value)
+	} else {
+		return fmt.Sprintf("ZeroBits:%s,BaseNode:%s,ZeroCount:%d", Bytes2Hex(m.ZeroBits), Bytes2Hex(m.BaseNode), m.ZeroCount)
+	}
 }
 
 type MergeValueZero struct {
@@ -34,27 +48,13 @@ type MergeValueZero struct {
 	ZeroCount byte
 }
 
-func (m *MergeValueZero) Hash() H256 {
-	var tmp []byte
-	tmp = append(tmp, MergeZeros)
-	tmp = append(tmp, m.BaseNode...)
-	tmp = append(tmp, m.ZeroBits...)
-	tmp = append(tmp, m.ZeroCount)
-	res, _ := smtBlake256(tmp)
-	return res
-}
-
-func (m *MergeValueZero) IsZero() bool {
-	return false
-}
-
-func (m *MergeValueZero) String() string {
-	return fmt.Sprintf("ZeroBits:%s,BaseNode:%s,ZeroCount:%d", Bytes2Hex(m.ZeroBits), Bytes2Hex(m.BaseNode), m.ZeroCount)
-}
-
 func MergeValueFromH256(value H256) MergeValue {
-	tmp := MergeValueH256{Value: value}
-	return &tmp
+	return MergeValue{
+		Value:     value,
+		BaseNode:  nil,
+		ZeroBits:  nil,
+		ZeroCount: 0,
+	}
 }
 
 func MergeValueFromZero() MergeValue {
@@ -105,31 +105,32 @@ func smtBlake256(data []byte) ([]byte, error) {
 }
 
 func MergeWithZero(height byte, nodeKey H256, value MergeValue, setBit bool) MergeValue {
-	if v, ok := (value).(*MergeValueH256); ok {
+	if value.Value != nil {
 		zeroBits := H256Zero()
 		if setBit {
 			zeroBits.SetBit(height)
 		}
-		baseNode := HashBaseNode(height, nodeKey, v.Value)
-
-		return &MergeValueZero{
+		baseNode := HashBaseNode(height, nodeKey, value.Value)
+		return MergeValue{
+			Value:     nil,
 			BaseNode:  baseNode,
 			ZeroBits:  zeroBits,
 			ZeroCount: 1,
 		}
-	} else if z, ok := (value).(*MergeValueZero); ok {
-		tmp := MergeValueZero{
+	} else {
+		tmp := MergeValue{
+			Value:     nil,
 			BaseNode:  H256Zero(),
 			ZeroBits:  H256Zero(),
-			ZeroCount: z.ZeroCount,
+			ZeroCount: value.ZeroCount,
 		}
-		copy(tmp.ZeroBits, z.ZeroBits)
-		copy(tmp.BaseNode, z.BaseNode)
+		tmp.ZeroCount++
+		copy(tmp.ZeroBits, value.ZeroBits)
+		copy(tmp.BaseNode, value.BaseNode)
 		if setBit {
 			tmp.ZeroBits.SetBit(height)
 		}
-		tmp.ZeroCount++
-		return &tmp
+
+		return tmp
 	}
-	return nil
 }

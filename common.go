@@ -1,6 +1,9 @@
 package smt
 
-import "encoding/hex"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+)
 
 const (
 	ByteSize     = 8
@@ -35,4 +38,10 @@ func Bytes2Hex(b []byte) string {
 		h = "0"
 	}
 	return "0x" + h
+}
+
+func Sha256(src string) []byte {
+	m := sha256.New()
+	m.Write([]byte(src))
+	return m.Sum(nil)
 }

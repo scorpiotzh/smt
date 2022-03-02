@@ -2,10 +2,8 @@ package smt
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/go-redis/redis"
-	"github.com/nervosnetwork/ckb-sdk-go/crypto/blake2b"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"testing"
@@ -63,7 +61,8 @@ func TestMerkleProof(t *testing.T) {
 
 func TestMerge(t *testing.T) {
 	nodeKey := Hex2Bytes("0x00000000000000000000000000000000000000000000000000000000000000d0")
-	lhs := MergeValueZero{
+	lhs := MergeValue{
+		Value:     nil,
 		BaseNode:  Hex2Bytes("0x9180ed6242e737f554d3c4f7b8f8f810581d810bcf3c1075070b45a6104d5ff8"),
 		ZeroBits:  Hex2Bytes("0x26938181394b731558f2bcc40926fc1e38c3036f249319cf7ba845a4bbd76903"),
 		ZeroCount: 251,
@@ -74,7 +73,7 @@ func TestMerge(t *testing.T) {
 	//	ZeroBits:  common.Hex2Bytes("0x26938181394b731558f2bcc40926fc1e38c3036f249319cf7ba845a4bbd76953"),
 	//	ZeroCount: 255,
 	//}
-	res := Merge(255, nodeKey, &lhs, rhs)
+	res := Merge(255, nodeKey, lhs, rhs)
 	fmt.Println(res.String())
 }
 
@@ -118,16 +117,15 @@ func TestMerkleProof2(t *testing.T) {
 }
 
 func TestSmt(t *testing.T) {
+	// 10000 4s
 	fmt.Println(time.Now().String())
 	tree := NewSparseMerkleTree("", nil)
-	count := 100
+	count := 100000
 	for i := 0; i < count; i++ {
 		key := fmt.Sprintf("key-%d", i)
 		value := fmt.Sprintf("value-%d", i)
-		k, _ := blake2b.Blake256([]byte(key))
-		v, _ := blake2b.Blake256([]byte(value))
-		//fmt.Println("k:",common.Bytes2Hex(k))
-		//fmt.Println("v:",common.Bytes2Hex(v))
+		k := Sha256(key)
+		v := Sha256(value)
 		_ = tree.Update(k, v)
 	}
 	fmt.Println(time.Now().String())
@@ -135,9 +133,9 @@ func TestSmt(t *testing.T) {
 		key := fmt.Sprintf("key-%d", i)
 		value := fmt.Sprintf("value-%d", i)
 		var keys, values []H256
-		k1, _ := blake2b.Blake256([]byte(key))
+		k1 := Sha256(key)
 		keys = append(keys, k1)
-		v1, _ := blake2b.Blake256([]byte(value))
+		v1 := Sha256(value)
 		values = append(values, v1)
 		proof, err := tree.MerkleProof(keys, values)
 		if err != nil {
@@ -150,7 +148,7 @@ func TestSmt(t *testing.T) {
 }
 
 func TestRedisStore(t *testing.T) {
-	// 10000 5min 900M
+	// 10000 4min 800M
 	red := redis.NewClient(&redis.Options{
 		Addr:     "127.0.0.1:6379",
 		Password: "",
@@ -159,50 +157,32 @@ func TestRedisStore(t *testing.T) {
 	s := NewRedisStore(red)
 	fmt.Println(time.Now().String())
 	tree := NewSparseMerkleTree("test", s)
-	count := 3
+	count := 10000
 	for i := 0; i < count; i++ {
 		key := fmt.Sprintf("key-%d", i)
 		value := fmt.Sprintf("value-%d", i)
-		k, _ := blake2b.Blake256([]byte(key))
-		v, _ := blake2b.Blake256([]byte(value))
-		//fmt.Println("k:",common.Bytes2Hex(k))
-		//fmt.Println("v:",common.Bytes2Hex(v))
+		k := Sha256(key)
+		v := Sha256(value)
 		if err := tree.Update(k, v); err != nil {
 			t.Fatal(err)
 		}
 	}
 	fmt.Println(time.Now().String())
-
-	var keys, values []H256
-	key := fmt.Sprintf("key-%d", 1)
-	value := fmt.Sprintf("value-%d", 1)
-	k, _ := blake2b.Blake256([]byte(key))
-	v, _ := blake2b.Blake256([]byte(value))
-	keys = append(keys, k)
-	values = append(values, v)
-
-	proof, err := tree.MerkleProof(keys, values)
-	if err != nil {
-		t.Fatal(err)
+	for i := 0; i < count; i++ {
+		key := fmt.Sprintf("key-%d", i)
+		value := fmt.Sprintf("value-%d", i)
+		var keys, values []H256
+		k1 := Sha256(key)
+		keys = append(keys, k1)
+		v1 := Sha256(value)
+		values = append(values, v1)
+		proof, err := tree.MerkleProof(keys, values)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fmt.Println(Verify(tree.Root, proof, keys, values))
 	}
-	fmt.Println(proof)
-	fmt.Println(Verify(tree.Root, proof, keys, values))
-}
-
-func TestBranchNode(t *testing.T) {
-	node := BranchNode{
-		Left: &MergeValueH256{Value: H256Zero()},
-		Right: &MergeValueZero{
-			BaseNode:  H256Zero(),
-			ZeroBits:  H256Zero(),
-			ZeroCount: 0,
-		},
-	}
-	res, err := json.Marshal(&node)
-	fmt.Println(string(res), err)
-	var data map[string]interface{}
-	err = json.Unmarshal(res, &data)
-	fmt.Println(err, data)
+	fmt.Println(time.Now().String())
 }
 
 func TestMongodbStoreDB(t *testing.T) {
@@ -212,7 +192,7 @@ func TestMongodbStoreDB(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewMongoStore(ctx, client)
+	s := NewMongoStore(ctx, client, "smt")
 	collection := s.client.Database("smt").Collection("test")
 	if err := collection.Drop(s.ctx); err != nil {
 		t.Fatal(err)
@@ -246,33 +226,33 @@ func TestMongodbStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewMongoStore(ctx, client)
+	s := NewMongoStore(ctx, client, "smt")
 	fmt.Println(time.Now().String())
 	tree := NewSparseMerkleTree("test", s)
-	count := 10000
-	//for i := 0; i < count; i++ {
-	//	key := fmt.Sprintf("key-%d", i)
-	//	value := fmt.Sprintf("value-%d", i)
-	//	k, _ := blake2b.Blake256([]byte(key))
-	//	v, _ := blake2b.Blake256([]byte(value))
-	//	if err := tree.Update(k, v); err != nil {
-	//		t.Fatal(err)
-	//	}
-	//}
-	fmt.Println(time.Now().String())
-	k, _ := blake2b.Blake256([]byte("key-1"))
-	v, _ := blake2b.Blake256([]byte("value-1"))
-	if err := tree.Update(k, v); err != nil {
-		t.Fatal(err)
+	count := 1000
+	for i := 0; i < count; i++ {
+		key := fmt.Sprintf("key-%d", i)
+		value := fmt.Sprintf("value-%d", i)
+		k := Sha256(key)
+		v := Sha256(value)
+		if err := tree.Update(k, v); err != nil {
+			t.Fatal(err)
+		}
 	}
+	fmt.Println(time.Now().String())
+	//k, _ := blake2b.Blake256([]byte("key-1"))
+	//v, _ := blake2b.Blake256([]byte("value-1"))
+	//if err := tree.Update(k, v); err != nil {
+	//	t.Fatal(err)
+	//}
 
 	for i := 0; i < count; i++ {
 		key := fmt.Sprintf("key-%d", i)
 		value := fmt.Sprintf("value-%d", i)
 		var keys, values []H256
-		k1, _ := blake2b.Blake256([]byte(key))
+		k1 := Sha256(key)
 		keys = append(keys, k1)
-		v1, _ := blake2b.Blake256([]byte(value))
+		v1 := Sha256(value)
 		values = append(values, v1)
 		proof, err := tree.MerkleProof(keys, values)
 		if err != nil {
@@ -280,18 +260,4 @@ func TestMongodbStore(t *testing.T) {
 		}
 		fmt.Println(Verify(tree.Root, proof, keys, values))
 	}
-	//var keys, values []H256
-	//key := fmt.Sprintf("key-%d", 1)
-	//value := fmt.Sprintf("value-%d", 1)
-	//k, _ := blake2b.Blake256([]byte(key))
-	//v, _ := blake2b.Blake256([]byte(value))
-	//keys = append(keys, k)
-	//values = append(values, v)
-	//
-	//proof, err := tree.MerkleProof(keys, values)
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
-	//fmt.Println(proof)
-	//fmt.Println(Verify(tree.Root, proof, keys, values))
 }

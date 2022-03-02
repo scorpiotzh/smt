@@ -9,9 +9,9 @@ var (
 )
 
 type BranchKey struct {
-	NameSpace string
-	Height    byte
-	NodeKey   H256
+	SmtName string
+	Height  byte
+	NodeKey H256
 }
 
 func (b *BranchKey) GetHash() string {
@@ -23,8 +23,8 @@ func (b *BranchKey) GetHash() string {
 }
 
 type BranchNode struct {
-	Left  MergeValue
-	Right MergeValue
+	Left  MergeValue `json:"l" bson:"l"`
+	Right MergeValue `json:"r" bson:"r"`
 }
 
 type Store interface {
