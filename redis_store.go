@@ -21,9 +21,9 @@ func (s *RedisStore) UpdateRoot(root H256) error {
 func (s *RedisStore) Root() (H256, error) {
 	if res, err := s.red.HGet(s.smtName, "root").Result(); err != nil {
 		if err == redis.Nil {
-			return nil, StoreErrorNotExist
+			return H256Zero(), nil
 		}
-		return H256Zero(), err
+		return nil, err
 	} else {
 		return Hex2Bytes(res), nil
 	}

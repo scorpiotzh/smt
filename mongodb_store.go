@@ -43,9 +43,9 @@ func (m *MongodbStore) Root() (H256, error) {
 	err := m.Collection().FindOne(m.ctx, bson.M{"_id": "root"}).Decode(&root)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, StoreErrorNotExist
+			return H256Zero(), nil
 		}
-		return H256Zero(), err
+		return nil, err
 	}
 	return root.Root, nil
 }
