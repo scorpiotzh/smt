@@ -6,20 +6,19 @@ import (
 )
 
 type SparseMerkleTree struct {
-	SmtName string
-	Store   Store
-	Root    H256
+	Store Store
 }
 
-func NewSparseMerkleTree(smtName string, store Store) *SparseMerkleTree {
+func NewSparseMerkleTree(store Store) *SparseMerkleTree {
 	if store == nil {
 		store = newDefaultStore()
 	}
 	return &SparseMerkleTree{
-		SmtName: smtName,
-		Store:   store,
-		Root:    make([]byte, 32),
+		Store: store,
 	}
+}
+func (s *SparseMerkleTree) Root() (H256, error) {
+	return s.Store.Root()
 }
 
 func (s *SparseMerkleTree) Update(key, value H256) error {
@@ -30,14 +29,16 @@ func (s *SparseMerkleTree) Update(key, value H256) error {
 
 		parentKey := currentKey.ParentPath(height)
 		parentBranchKey := BranchKey{
-			SmtName: s.SmtName,
 			Height:  height,
 			NodeKey: *parentKey,
 		}
 		var left, right MergeValue
 
 		parentBranch, err := s.Store.GetBranch(parentBranchKey)
-		if err == nil {
+		if err != nil && err != StoreErrorNotExist {
+			return fmt.Errorf("GetBranch err: %s", err.Error())
+		}
+		if parentBranch != nil {
 			if currentKey.IsRight(height) {
 				left, right = parentBranch.Left, currentNode
 			} else {
@@ -66,7 +67,9 @@ func (s *SparseMerkleTree) Update(key, value H256) error {
 		currentNode = Merge(height, *parentKey, left, right)
 
 	}
-	s.Root = currentNode.Hash()
+	if err := s.Store.UpdateRoot(currentNode.Hash()); err != nil {
+		return fmt.Errorf("UpdateRoot err: %s", err.Error())
+	}
 	return nil
 }
 
@@ -87,7 +90,6 @@ func (s *SparseMerkleTree) merkleProof(keys []H256) (*MerkleProof, error) {
 			height := byte(i)
 			parentKey := currentKey.ParentPath(height)
 			parentBranchKey := BranchKey{
-				SmtName: s.SmtName,
 				Height:  height,
 				NodeKey: *parentKey,
 			}
@@ -131,7 +133,6 @@ func (s *SparseMerkleTree) merkleProof(keys []H256) (*MerkleProof, error) {
 				stackTop -= 1
 			} else if leavesBitMap[leafIndex].GetBit(height) {
 				parentBranchKey := BranchKey{
-					SmtName: s.SmtName,
 					Height:  height,
 					NodeKey: *parentKey,
 				}

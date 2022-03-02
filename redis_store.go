@@ -6,16 +6,35 @@ import (
 )
 
 type RedisStore struct {
-	red *redis.Client
+	smtName string
+	red     *redis.Client
 }
 
-func NewRedisStore(red *redis.Client) *RedisStore {
-	return &RedisStore{red: red}
+func NewRedisStore(smtName string, red *redis.Client) *RedisStore {
+	return &RedisStore{smtName: smtName, red: red}
+}
+
+func (s *RedisStore) UpdateRoot(root H256) error {
+	return s.red.HSet(s.smtName, "root", root.String()).Err()
+}
+
+func (s *RedisStore) Root() (H256, error) {
+	if res, err := s.red.HGet(s.smtName, "root").Result(); err != nil {
+		if err == redis.Nil {
+			return nil, StoreErrorNotExist
+		}
+		return H256Zero(), err
+	} else {
+		return Hex2Bytes(res), nil
+	}
 }
 
 func (s *RedisStore) GetBranch(key BranchKey) (*BranchNode, error) {
 	keyHash := key.GetHash()
-	if res, err := s.red.HGet(key.SmtName, keyHash).Result(); err != nil {
+	if res, err := s.red.HGet(s.smtName, keyHash).Result(); err != nil {
+		if err == redis.Nil {
+			return nil, StoreErrorNotExist
+		}
 		return nil, err
 	} else {
 		var node BranchNode
@@ -25,7 +44,6 @@ func (s *RedisStore) GetBranch(key BranchKey) (*BranchNode, error) {
 			return &node, nil
 		}
 	}
-	return nil, StoreErrorNotExistBranch
 }
 
 func (s *RedisStore) InsertBranch(key BranchKey, node BranchNode) error {
@@ -34,7 +52,7 @@ func (s *RedisStore) InsertBranch(key BranchKey, node BranchNode) error {
 	if err != nil {
 		return err
 	}
-	if _, err := s.red.HSet(key.SmtName, keyHash, data).Result(); err != nil {
+	if _, err := s.red.HSet(s.smtName, keyHash, data).Result(); err != nil {
 		return err
 	}
 	return nil
@@ -42,7 +60,7 @@ func (s *RedisStore) InsertBranch(key BranchKey, node BranchNode) error {
 
 func (s *RedisStore) RemoveBranch(key BranchKey) error {
 	keyHash := key.GetHash()
-	if _, err := s.red.HDel(key.SmtName, keyHash).Result(); err != nil {
+	if _, err := s.red.HDel(s.smtName, keyHash).Result(); err != nil {
 		return err
 	}
 	return nil
