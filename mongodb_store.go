@@ -18,17 +18,20 @@ func NewMongoStore(ctx context.Context, client *mongo.Client, database, smtName 
 	return &MongodbStore{ctx: ctx, client: client, database: database, smtName: smtName}
 }
 
+func (m *MongodbStore) Collection() *mongo.Collection {
+	return m.client.Database(m.database).Collection(m.smtName)
+}
+
 type MongodbRoot struct {
 	Root H256 `json:"r" bson:"r"`
 }
 
 func (m *MongodbStore) UpdateRoot(root H256) error {
-	collection := m.client.Database(m.database).Collection(m.smtName)
 	var data MongodbRoot
 	data.Root = root
 	update := bson.M{"$set": data}
 	updateOpts := options.Update().SetUpsert(true)
-	_, err := collection.UpdateOne(context.Background(), bson.M{"_id": "root"}, update, updateOpts)
+	_, err := m.Collection().UpdateOne(context.Background(), bson.M{"_id": "root"}, update, updateOpts)
 	if err != nil {
 		return err
 	}
@@ -37,8 +40,7 @@ func (m *MongodbStore) UpdateRoot(root H256) error {
 
 func (m *MongodbStore) Root() (H256, error) {
 	var root MongodbRoot
-	collection := m.client.Database(m.database).Collection(m.smtName)
-	err := collection.FindOne(m.ctx, bson.M{"_id": "root"}).Decode(&root)
+	err := m.Collection().FindOne(m.ctx, bson.M{"_id": "root"}).Decode(&root)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, StoreErrorNotExist
@@ -51,8 +53,7 @@ func (m *MongodbStore) Root() (H256, error) {
 func (m *MongodbStore) GetBranch(key BranchKey) (*BranchNode, error) {
 	keyHash := key.GetHash()
 	var node BranchNode
-	collection := m.client.Database(m.database).Collection(m.smtName)
-	err := collection.FindOne(m.ctx, bson.M{"_id": keyHash}).Decode(&node)
+	err := m.Collection().FindOne(m.ctx, bson.M{"_id": keyHash}).Decode(&node)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, StoreErrorNotExist
@@ -64,10 +65,9 @@ func (m *MongodbStore) GetBranch(key BranchKey) (*BranchNode, error) {
 
 func (m *MongodbStore) InsertBranch(key BranchKey, node BranchNode) error {
 	keyHash := key.GetHash()
-	collection := m.client.Database(m.database).Collection(m.smtName)
 	update := bson.M{"$set": node}
 	updateOpts := options.Update().SetUpsert(true)
-	_, err := collection.UpdateOne(context.Background(), bson.M{"_id": keyHash}, update, updateOpts)
+	_, err := m.Collection().UpdateOne(context.Background(), bson.M{"_id": keyHash}, update, updateOpts)
 	if err != nil {
 		return err
 	}
@@ -76,8 +76,7 @@ func (m *MongodbStore) InsertBranch(key BranchKey, node BranchNode) error {
 
 func (m *MongodbStore) RemoveBranch(key BranchKey) error {
 	keyHash := key.GetHash()
-	collection := m.client.Database(m.database).Collection(m.smtName)
-	_, err := collection.DeleteOne(m.ctx, bson.M{"_id": keyHash})
+	_, err := m.Collection().DeleteOne(m.ctx, bson.M{"_id": keyHash})
 	if err != nil {
 		return err
 	}

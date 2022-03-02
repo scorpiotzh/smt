@@ -208,8 +208,7 @@ func TestMongodbStoreDB(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := NewMongoStore(ctx, client, "smt", "test")
-	collection := s.client.Database("smt").Collection("test")
-	if err := collection.Drop(s.ctx); err != nil {
+	if err := s.Collection().Drop(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	//key := BranchKey{

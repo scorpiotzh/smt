@@ -38,7 +38,7 @@ func (m *MergeValue) String() string {
 	if m.Value != nil {
 		return Bytes2Hex(m.Value)
 	} else {
-		return fmt.Sprintf("ZeroBits:%s,BaseNode:%s,ZeroCount:%d", Bytes2Hex(m.ZeroBits), Bytes2Hex(m.BaseNode), m.ZeroCount)
+		return fmt.Sprintf("b:%s,n:%s,c:%d", Bytes2Hex(m.ZeroBits), Bytes2Hex(m.BaseNode), m.ZeroCount)
 	}
 }
 
